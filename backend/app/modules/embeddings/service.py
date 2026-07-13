@@ -92,14 +92,85 @@ class QdrantStore:
     url: str
     collection_name: str = "embeddings"
     vectors: list[dict[str, Any]] = field(default_factory=list)
+    collections: dict[str, dict[str, Any]] = field(default_factory=dict)
+    namespaces: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    def upsert_vectors(self, vectors: list[dict[str, Any]]) -> None:
-        self.vectors.extend(vectors)
+    def __post_init__(self) -> None:
+        self.collections.setdefault(self.collection_name, {"vector_size": 0, "namespace_map": {}})
+        self.namespaces.setdefault(self.collection_name, {})
 
-    def query_vectors(self, vector: list[float], limit: int = 5) -> list[dict[str, Any]]:
-        if not self.vectors:
-            return []
-        return self.vectors[:limit]
+    def create_collection(self, collection_name: str, vector_size: int, metadata: dict[str, Any] | None = None) -> None:
+        if collection_name not in self.collections:
+            self.collections[collection_name] = {"vector_size": vector_size, "metadata": metadata or {}, "namespace_map": {}}
+            self.namespaces[collection_name] = {}
+
+    def list_collections(self) -> list[str]:
+        return list(self.collections.keys())
+
+    def list_namespaces(self, collection_name: str) -> list[str]:
+        return list(self.namespaces.get(collection_name, {}).keys())
+
+    def upsert_vectors(self, vectors: list[dict[str, Any]], collection_name: str | None = None, namespace: str | None = None) -> None:
+        target_collection = collection_name or self.collection_name
+        self.create_collection(target_collection, vector_size=len(vectors[0].get("vector", [])) if vectors else 0)
+        namespace_name = namespace or "default"
+        self.namespaces.setdefault(target_collection, {})
+        self.namespaces[target_collection].setdefault(namespace_name, [])
+        for vector in vectors:
+            record = dict(vector)
+            record.setdefault("payload", {})
+            record.setdefault("deleted", False)
+            record.setdefault("version", 1)
+            existing_index = None
+            for index, current in enumerate(self.namespaces[target_collection][namespace_name]):
+                if current.get("id") == record["id"]:
+                    existing_index = index
+                    break
+            if existing_index is not None:
+                record["version"] = self.namespaces[target_collection][namespace_name][existing_index].get("version", 1) + 1
+                self.namespaces[target_collection][namespace_name][existing_index] = record
+            else:
+                self.namespaces[target_collection][namespace_name].append(record)
+
+    def batch_insert(self, vectors: list[dict[str, Any]], collection_name: str | None = None, namespace: str | None = None) -> None:
+        self.upsert_vectors(vectors, collection_name=collection_name, namespace=namespace)
+
+    def get_vector(self, vector_id: str, collection_name: str | None = None, namespace: str | None = None) -> dict[str, Any] | None:
+        target_collection = collection_name or self.collection_name
+        namespace_name = namespace or "default"
+        for item in self.namespaces.get(target_collection, {}).get(namespace_name, []):
+            if item.get("id") == vector_id:
+                return item
+        return None
+
+    def soft_delete(self, vector_id: str, collection_name: str | None = None, namespace: str | None = None) -> None:
+        target_collection = collection_name or self.collection_name
+        namespace_name = namespace or "default"
+        for item in self.namespaces.get(target_collection, {}).get(namespace_name, []):
+            if item.get("id") == vector_id:
+                item["deleted"] = True
+                item["version"] = item.get("version", 1) + 1
+                break
+
+    def search(self, collection_name: str, query_vector: list[float], namespace: str | None = None, filter: dict[str, Any] | None = None, limit: int = 5) -> list[dict[str, Any]]:
+        namespace_name = namespace or "default"
+        matches: list[dict[str, Any]] = []
+        for item in self.namespaces.get(collection_name, {}).get(namespace_name, []):
+            if item.get("deleted"):
+                continue
+            payload = item.get("payload") or {}
+            if filter and any(payload.get(key) != value for key, value in filter.items()):
+                continue
+            matches.append(item)
+        return matches[:limit]
+
+    def migrate_collection(self, source_collection: str, target_collection: str) -> None:
+        self.create_collection(target_collection, vector_size=self.collections.get(source_collection, {}).get("vector_size", 0))
+        for namespace_name, items in self.namespaces.get(source_collection, {}).items():
+            self.namespaces.setdefault(target_collection, {})[namespace_name] = list(items)
+
+    def query_vectors(self, vector: list[float], limit: int = 5, collection_name: str | None = None, namespace: str | None = None, filter: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        return self.search(collection_name or self.collection_name, vector, namespace=namespace, filter=filter, limit=limit)
 
 
 class EmbeddingService:
