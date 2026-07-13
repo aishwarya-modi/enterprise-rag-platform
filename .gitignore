@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.env
+.venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Poetry
+poetry.lock
+
+# Node
+node_modules/
+.next/
+out/
+coverage/
+
+# Docker / Kubernetes
+*.log
+
+# OS
+.DS_Store
