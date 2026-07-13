@@ -28,6 +28,10 @@ class DocumentRepository:
         checksum: str,
         storage_path: str,
         status: str,
+        extracted_text: str | None = None,
+        confidence_score: float | None = None,
+        pages: int | None = None,
+        error: str | None = None,
     ) -> str:
         existing = await self.get_by_checksum(checksum)
         if existing is not None:
@@ -42,11 +46,20 @@ class DocumentRepository:
             "checksum": checksum,
             "storage_path": storage_path,
             "status": status,
+            "extracted_text": extracted_text,
+            "confidence_score": confidence_score,
+            "pages": pages,
+            "error": error,
         }
         return document_id
 
     async def get_by_id(self, document_id: str) -> dict[str, object] | None:
         return self._documents.get(document_id)
+
+    async def update(self, document_id: str, **updates: object) -> None:
+        document = self._documents.get(document_id)
+        if document is not None:
+            document.update(updates)
 
     async def get_by_checksum(self, checksum: str) -> dict[str, object] | None:
         for document in self._documents.values():

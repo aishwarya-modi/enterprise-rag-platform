@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app.core.config import get_settings
+from app.modules.documents.ocr import FallbackOCRAdapter, OCRAdapter, TesseractOCRAdapter
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentResponse, DocumentStatus, DocumentUploadRequest
 from app.modules.documents.tasks import submit_document_processing
@@ -25,9 +26,15 @@ class LocalStorageAdapter:
 
 
 class DocumentService:
-    def __init__(self, repository: DocumentRepository | None = None, storage: StorageAdapter | None = None) -> None:
+    def __init__(
+        self,
+        repository: DocumentRepository | None = None,
+        storage: StorageAdapter | None = None,
+        ocr_adapter: OCRAdapter | None = None,
+    ) -> None:
         self._repository = repository or DocumentRepository()
         self._storage = storage or LocalStorageAdapter()
+        self._ocr_adapter = ocr_adapter or TesseractOCRAdapter()
         self._settings = get_settings()
 
     @staticmethod
@@ -60,8 +67,33 @@ class DocumentService:
         document = await self._repository.get_by_id(document_id)
         if document is None:
             return
-        document["status"] = DocumentStatus.indexed.value
-        document["processed_at"] = datetime.now(UTC).isoformat()
+
+        extracted_text = ""
+        confidence_score = 0.0
+        pages = 1
+        error = None
+        try:
+            if request.content_type in {"png", "jpeg", "pdf"}:
+                extracted_text, confidence_score, pages = self._ocr_adapter.extract_text(str(document.get("storage_path")))
+        except Exception as exc:  # noqa: BLE001
+            error = str(exc)
+            extracted_text = ""
+            confidence_score = 0.0
+            pages = 1
+
+        if not extracted_text:
+            extracted_text = "OCR fallback: no text extracted"
+            confidence_score = 0.0
+
+        await self._repository.update(
+            document_id,
+            status=DocumentStatus.indexed.value,
+            extracted_text=extracted_text,
+            confidence_score=confidence_score,
+            pages=pages,
+            error=error,
+            processed_at=datetime.now(UTC).isoformat(),
+        )
 
     async def upload_document(self, request: DocumentUploadRequest, content: bytes, file_name: str) -> DocumentResponse:
         try:
@@ -92,7 +124,7 @@ class DocumentService:
             storage_path,
             DocumentStatus.processing.value,
         )
-        submit_document_processing(document_id, checksum, storage_path)
+        submit_document_processing(document_id, checksum, storage_path, request.content_type)
         return DocumentResponse(
             id=document_id,
             tenant_id=request.tenant_id,

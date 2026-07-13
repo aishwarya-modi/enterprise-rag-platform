@@ -12,4 +12,7 @@ class Document:
     content_type: Mapped[str] = mapped_column(String(50), nullable=False)
     checksum: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    extracted_text: Mapped[str | None] = mapped_column(String(8192), nullable=True)
+    confidence_score: Mapped[float | None] = mapped_column(default=None, nullable=True)
+    pages: Mapped[int | None] = mapped_column(default=None, nullable=True)
     error: Mapped[str | None] = mapped_column(String(1024), nullable=True)

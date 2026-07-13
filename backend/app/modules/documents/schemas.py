@@ -27,4 +27,7 @@ class DocumentResponse(BaseModel):
     content_type: str
     checksum: str | None = None
     storage_path: str | None = None
+    extracted_text: str | None = None
+    confidence_score: float | None = None
+    pages: int | None = None
     error: str | None = None

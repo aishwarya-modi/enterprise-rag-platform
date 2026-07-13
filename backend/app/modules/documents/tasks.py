@@ -12,9 +12,9 @@ celery_app.conf.task_eager_propagates = True
 
 
 @celery_app.task(name="documents.process")
-def process_document(document_id: str, checksum: str, storage_path: str) -> dict[str, str]:
-    return {"document_id": document_id, "checksum": checksum, "storage_path": storage_path}
+def process_document(document_id: str, checksum: str, storage_path: str, content_type: str) -> dict[str, str]:
+    return {"document_id": document_id, "checksum": checksum, "storage_path": storage_path, "content_type": content_type}
 
 
-def submit_document_processing(document_id: str, checksum: str, storage_path: str) -> None:
-    process_document.delay(document_id, checksum, storage_path)
+def submit_document_processing(document_id: str, checksum: str, storage_path: str, content_type: str) -> None:
+    process_document.delay(document_id, checksum, storage_path, content_type)
