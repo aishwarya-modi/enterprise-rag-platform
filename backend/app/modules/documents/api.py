@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from app.modules.documents.schemas import DocumentParseResponse, DocumentResponse, DocumentUploadRequest
+from app.modules.documents.schemas import ChunkingRequest, ChunkingResponse, DocumentParseResponse, DocumentResponse, DocumentUploadRequest
 from app.modules.documents.service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -43,3 +43,12 @@ async def parse_document(
 ) -> DocumentParseResponse:
     parsed = await service.parse_document(document_id)
     return DocumentParseResponse(**parsed)
+
+
+@router.post("/{document_id}/chunk", response_model=ChunkingResponse, summary="Chunk a document with a configurable strategy")
+async def chunk_document(
+    document_id: str,
+    request: ChunkingRequest,
+    service: Annotated[DocumentService, Depends(get_document_service)],
+) -> ChunkingResponse:
+    return await service.chunk_document(document_id, request)

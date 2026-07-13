@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Protocol
 
 from app.core.config import get_settings
+from app.modules.documents.chunking import ChunkingConfig, ChunkingStrategy, chunk_text
 from app.modules.documents.ocr import OCRAdapter, TesseractOCRAdapter
 from app.modules.documents.parser import parse_document_content
 from app.modules.documents.repository import DocumentRepository
-from app.modules.documents.schemas import DocumentResponse, DocumentStatus, DocumentUploadRequest
+from app.modules.documents.schemas import ChunkingRequest, ChunkingResponse, DocumentResponse, DocumentStatus, DocumentUploadRequest
 from app.modules.documents.tasks import submit_document_processing
 
 
@@ -127,6 +128,17 @@ class DocumentService:
             "title": str(document["title"]),
             "parsed_content": parsed_content or {},
         }
+
+    async def chunk_document(self, document_id: str, request: ChunkingRequest) -> ChunkingResponse:
+        document = await self._repository.get_by_id(document_id)
+        if document is None:
+            raise ValueError("Document not found")
+
+        text = str(document.get("extracted_text") or document.get("parsed_content") or "")
+        strategy = ChunkingStrategy(request.strategy)
+        config = ChunkingConfig(strategy=strategy, chunk_size=request.chunk_size, overlap=request.overlap)
+        chunks = chunk_text(text, config)
+        return ChunkingResponse(document_id=str(document["id"]), strategy=request.strategy, chunks=chunks)
 
     async def upload_document(self, request: DocumentUploadRequest, content: bytes, file_name: str) -> DocumentResponse:
         try:

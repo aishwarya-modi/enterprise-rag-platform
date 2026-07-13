@@ -38,3 +38,15 @@ class DocumentParseResponse(BaseModel):
     tenant_id: str
     title: str
     parsed_content: dict[str, object] | None = None
+
+
+class ChunkingRequest(BaseModel):
+    strategy: str = "recursive"
+    chunk_size: int = 300
+    overlap: int = 50
+
+
+class ChunkingResponse(BaseModel):
+    document_id: str
+    strategy: str
+    chunks: list[dict[str, object]]
