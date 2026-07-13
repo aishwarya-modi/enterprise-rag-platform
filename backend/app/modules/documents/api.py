@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.modules.documents.schemas import DocumentResponse, DocumentUploadRequest
 from app.modules.documents.service import DocumentService
@@ -15,12 +15,22 @@ def get_document_service() -> DocumentService:
 @router.post("", response_model=DocumentResponse, summary="Upload a document")
 async def upload_document(
     file: UploadFile = File(...),
-    tenant_id: str = "tenant-1",
+    tenant_id: str = Form("tenant-1"),
+    title: str | None = Form(default=None),
+    content_type: str | None = Form(default=None),
     service: Annotated[DocumentService, Depends(get_document_service)] = None,
 ) -> DocumentResponse:
+    if file.filename is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
+
+    content = await file.read()
     request = DocumentUploadRequest(
         tenant_id=tenant_id,
-        title=file.filename or "uploaded-document",
-        content_type="pdf",
+        title=title or file.filename,
+        content_type=content_type or file.filename.rsplit(".", 1)[-1].lower(),
+        size_bytes=len(content),
     )
-    return await service.upload_document(request)
+    try:
+        return await service.upload_document(request, content, file.filename)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

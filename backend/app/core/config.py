@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
+    max_upload_size_mb: int = 20
+    storage_path: str = "/tmp/enterprise-rag-storage"
+    virus_scan_enabled: bool = False
+
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     gemini_api_key: str | None = None

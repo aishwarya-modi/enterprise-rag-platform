@@ -14,7 +14,9 @@ class DocumentStatus(str, Enum):
 class DocumentUploadRequest(BaseModel):
     tenant_id: str
     title: str = Field(min_length=1, max_length=255)
-    content_type: Literal["pdf", "docx", "pptx", "txt", "markdown", "csv", "png", "jpeg"]
+    content_type: str
+    size_bytes: int | None = None
+    checksum: str | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -23,3 +25,6 @@ class DocumentResponse(BaseModel):
     title: str
     status: DocumentStatus
     content_type: str
+    checksum: str | None = None
+    storage_path: str | None = None
+    error: str | None = None
