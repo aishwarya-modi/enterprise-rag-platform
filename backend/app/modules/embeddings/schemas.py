@@ -15,3 +15,18 @@ class EmbeddingResponse(BaseModel):
     provider: str
     model: str
     dimensions: int
+
+
+class ContextCompressionRequest(BaseModel):
+    contexts: list[dict[str, object]] = Field(default_factory=list)
+    strategy: str = "hybrid"
+    max_tokens: int = 512
+    preserve_citations: bool = True
+
+
+class ContextCompressionResponse(BaseModel):
+    compressed_context: list[dict[str, object]]
+    original_token_count: int
+    compressed_token_count: int
+    removed_items: int
+    strategy: str
