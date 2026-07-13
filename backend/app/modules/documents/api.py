@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from app.modules.documents.schemas import DocumentResponse, DocumentUploadRequest
+from app.modules.documents.schemas import DocumentParseResponse, DocumentResponse, DocumentUploadRequest
 from app.modules.documents.service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -34,3 +34,12 @@ async def upload_document(
         return await service.upload_document(request, content, file.filename)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{document_id}/parse", response_model=DocumentParseResponse, summary="Parse a document into structured JSON")
+async def parse_document(
+    document_id: str,
+    service: Annotated[DocumentService, Depends(get_document_service)],
+) -> DocumentParseResponse:
+    parsed = await service.parse_document(document_id)
+    return DocumentParseResponse(**parsed)

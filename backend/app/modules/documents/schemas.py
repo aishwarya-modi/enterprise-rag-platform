@@ -31,3 +31,10 @@ class DocumentResponse(BaseModel):
     confidence_score: float | None = None
     pages: int | None = None
     error: str | None = None
+
+
+class DocumentParseResponse(BaseModel):
+    document_id: str
+    tenant_id: str
+    title: str
+    parsed_content: dict[str, object] | None = None

@@ -1,10 +1,12 @@
 import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 from app.core.config import get_settings
-from app.modules.documents.ocr import FallbackOCRAdapter, OCRAdapter, TesseractOCRAdapter
+from app.modules.documents.ocr import OCRAdapter, TesseractOCRAdapter
+from app.modules.documents.parser import parse_document_content
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentResponse, DocumentStatus, DocumentUploadRequest
 from app.modules.documents.tasks import submit_document_processing
@@ -85,15 +87,46 @@ class DocumentService:
             extracted_text = "OCR fallback: no text extracted"
             confidence_score = 0.0
 
+        parsed_content = parse_document_content(
+            request.content_type,
+            content,
+            metadata={
+                "author": "unknown",
+                "title": request.title,
+                "language": "en",
+            },
+        )
+
         await self._repository.update(
             document_id,
             status=DocumentStatus.indexed.value,
             extracted_text=extracted_text,
             confidence_score=confidence_score,
             pages=pages,
+            parsed_content=json.dumps(parsed_content),
             error=error,
             processed_at=datetime.now(UTC).isoformat(),
         )
+
+    async def parse_document(self, document_id: str) -> dict[str, object]:
+        document = await self._repository.get_by_id(document_id)
+        if document is None:
+            raise ValueError("Document not found")
+
+        parsed_content: dict[str, object] | None = None
+        raw_content = document.get("parsed_content")
+        if isinstance(raw_content, str):
+            try:
+                parsed_content = json.loads(raw_content)
+            except json.JSONDecodeError:
+                parsed_content = None
+
+        return {
+            "document_id": str(document["id"]),
+            "tenant_id": str(document["tenant_id"]),
+            "title": str(document["title"]),
+            "parsed_content": parsed_content or {},
+        }
 
     async def upload_document(self, request: DocumentUploadRequest, content: bytes, file_name: str) -> DocumentResponse:
         try:
