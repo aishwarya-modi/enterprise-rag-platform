@@ -503,4 +503,4 @@ docker exec enterprise-rag-platform-backend-1 python /app/scripts/seed_qdrant.py
 
 ## License
 
-MIT
+Aishwarya
