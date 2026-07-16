@@ -1,0 +1,13 @@
+{{- if and .Values.backend.enabled .Values.backend.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-backend
+  labels:
+    {{- include "rag-platform.backendLabels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.backend.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "rag-platform.backendSelectorLabels" . | nindent 6 }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if and .Values.qdrant.enabled .Values.qdrant.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-qdrant-data
+  labels:
+    {{- include "rag-platform.qdrantLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.qdrant.persistence.accessModes | nindent 4 }}
+  {{- if .Values.qdrant.persistence.storageClass }}
+  storageClassName: {{ .Values.qdrant.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.qdrant.persistence.size }}
+{{- end }}

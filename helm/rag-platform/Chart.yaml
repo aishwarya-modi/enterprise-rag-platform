@@ -1,0 +1,27 @@
+apiVersion: v2
+name: rag-platform
+description: Enterprise RAG Platform - Production-ready deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Platform Team
+    email: platform@example.com
+keywords:
+  - rag
+  - enterprise
+  - llm
+  - vector-search
+dependencies:
+  - name: postgresql
+    version: "16.4.1"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "20.6.2"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: qdrant
+    version: "0.7.4"
+    repository: "https://qdrant.github.io/qdrant-helm"
+    condition: qdrant.enabled

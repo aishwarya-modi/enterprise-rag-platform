@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-config
+  labels:
+    {{- include "rag-platform.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.configMap.logLevel | quote }}
+  LOG_JSON: {{ .Values.configMap.logJson | quote }}
+  PROMETHEUS_ENABLED: {{ .Values.configMap.prometheusEnabled | quote }}
+  ENVIRONMENT: {{ .Values.configMap.environment | quote }}

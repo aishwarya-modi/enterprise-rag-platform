@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,11 +20,24 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
-    openai_api_key: str | None = None
-    anthropic_api_key: str | None = None
-    gemini_api_key: str | None = None
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
     ollama_base_url: str = "http://localhost:11434"
     default_llm_provider: str = "openai"
+
+    cache_default_ttl: int = 3600
+    cache_embedding_ttl: int = 86400
+    cache_search_ttl: int = 3600
+    cache_llm_ttl: int = 7200
+    cache_auth_ttl: int = 3600
+    cache_session_ttl: int = 1800
+
+    otlp_endpoint: Optional[str] = None
+    otel_service_name: str = "enterprise-rag-platform"
+    log_level: str = "INFO"
+    log_json: bool = True
+    prometheus_enabled: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

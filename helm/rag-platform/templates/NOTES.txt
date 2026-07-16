@@ -1,0 +1,42 @@
+Enterprise RAG Platform has been deployed!
+
+{{- if .Values.ingress.enabled }}
+Access the application at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+Access the application via port-forward:
+
+  # Frontend
+  kubectl port-forward svc/{{ include "rag-platform.fullname" . }}-frontend 3000:{{ .Values.frontend.service.port }}
+
+  # Backend API
+  kubectl port-forward svc/{{ include "rag-platform.fullname" . }}-backend 8000:{{ .Values.backend.service.port }}
+
+  Then visit:
+    Frontend: http://localhost:3000
+    Backend:  http://localhost:8000/docs
+{{- end }}
+
+Components deployed:
+{{- if .Values.backend.enabled }}
+  - Backend ({{ .Values.backend.replicaCount }} replicas)
+{{- end }}
+{{- if .Values.frontend.enabled }}
+  - Frontend ({{ .Values.frontend.replicaCount }} replicas)
+{{- end }}
+{{- if .Values.qdrant.enabled }}
+  - Qdrant Vector DB ({{ .Values.qdrant.persistence.size }} storage)
+{{- end }}
+{{- if .Values.redis.enabled }}
+  - Redis Cache
+{{- end }}
+{{- if .Values.postgresql.enabled }}
+  - PostgreSQL Database ({{ .Values.postgresql.primary.persistence.size }} storage)
+{{- end }}
+
+Useful commands:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -l app.kubernetes.io/component=backend -f
+  kubectl logs -l app.kubernetes.io/component=frontend -f

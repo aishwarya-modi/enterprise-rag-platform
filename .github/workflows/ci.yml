@@ -4,19 +4,187 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
 
 jobs:
-  backend-tests:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+
+      - name: Ruff lint
+        run: ruff check backend/app/ --output-format=github
+
+      - name: Ruff format check
+        run: ruff format --check backend/app/
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend lint
+        run: npm run lint
+        working-directory: frontend
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install 'fastapi[all]>=0.115.0' 'uvicorn[standard]>=0.31.0' 'pydantic>=2.9.0' 'pydantic-settings>=2.4.0' 'sqlalchemy[asyncio]>=2.0.0' 'asyncpg>=0.25.0' 'httpx>=0.28.0' 'python-multipart>=0.0.20' 'pytest>=8.4.0' 'pytest-asyncio>=0.24.0'
-      - name: Run tests
+          python -m pip install \
+            'fastapi[all]>=0.115.0' \
+            'uvicorn[standard]>=0.31.0' \
+            'pydantic>=2.9.0' \
+            'pydantic-settings>=2.4.0' \
+            'sqlalchemy[asyncio]>=2.0.0' \
+            'asyncpg>=0.25.0' \
+            'redis>=5.0.0' \
+            'httpx>=0.28.0' \
+            'python-multipart>=0.0.20' \
+            'python-jose[cryptography]>=3.6.0' \
+            'passlib[bcrypt]>=1.7.0' \
+            'pytest>=8.4.0' \
+            'pytest-asyncio>=0.24.0' \
+            'pytest-cov>=5.0.0' \
+            'langgraph>=0.3.0' \
+            'openai>=1.52.0' \
+            'anthropic>=0.37.0' \
+            'langchain-core>=0.3.0' \
+            'langchain-openai>=0.3.0' \
+            'ragas>=0.4.0' \
+            'prometheus-client>=0.20.0' \
+            'opentelemetry-api>=1.27.0' \
+            'opentelemetry-sdk>=1.27.0' \
+            'tiktoken>=0.7.0' \
+            'pypdf>=5.0.0' \
+            'python-docx>=1.1.0'
+
+      - name: Run tests with coverage
         run: |
-          PYTHONPATH=backend pytest -q backend/app/modules/auth/tests/test_auth_api.py backend/app/modules/documents/tests/test_documents_api.py backend/app/modules/llm/tests/test_llm_api.py backend/app/modules/tenants/tests/test_tenants_api.py
+          PYTHONPATH=backend pytest backend/ \
+            -v \
+            --tb=short \
+            --cov=backend/app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --junitxml=test-results.xml
+
+      - name: Upload coverage report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            coverage.xml
+            htmlcov/
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit security scan
+        run: bandit -r backend/app/ -c pyproject.toml --severity-level medium --confidence-level medium || true
+
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit --require-hashes=false --disable-pip --progress-spinner off || true
+
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: enterprise-rag-backend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: enterprise-rag-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify backend health
+        run: |
+          docker run -d --name backend-test -p 8000:8000 enterprise-rag-backend:test
+          sleep 5
+          docker exec backend-test python -c "from app.main import app; print('Import OK')"
+          docker stop backend-test

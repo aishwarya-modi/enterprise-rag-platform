@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.github
+*.md
+.env*
+Dockerfile
+docker-compose*.yml
+k8s
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache

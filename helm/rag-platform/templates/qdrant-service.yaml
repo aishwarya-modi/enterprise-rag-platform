@@ -1,0 +1,21 @@
+{{- if .Values.qdrant.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rag-platform.fullname" . }}-qdrant
+  labels:
+    {{- include "rag-platform.qdrantLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.qdrant.service.type }}
+  ports:
+    - port: {{ .Values.qdrant.service.port }}
+      targetPort: 6333
+      protocol: TCP
+      name: http
+    - port: {{ .Values.qdrant.service.grpcPort }}
+      targetPort: 6334
+      protocol: TCP
+      name: grpc
+  selector:
+    {{- include "rag-platform.qdrantSelectorLabels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,199 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: enterprise-rag-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: enterprise-rag-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+qdrant:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: qdrant/qdrant
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6333
+    grpcPort: 6334
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+  nodeSelector: {}
+  tolerations: []
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  replica:
+    replicaCount: 0
+
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "postgres"
+    username: "postgres"
+    password: "postgres"
+    database: "rag"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: rag.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 80
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 80
+        - path: /health
+          pathType: Exact
+          service: backend
+          port: 80
+        - path: /metrics
+          pathType: Exact
+          service: backend
+          port: 80
+  tls:
+    - secretName: rag-platform-tls
+      hosts:
+        - rag.example.com
+
+secrets:
+  openaiApiKey: ""
+  anthropicApiKey: ""
+  jwtSecretKey: "change-me-in-production"
+  databaseUrl: ""
+
+configMap:
+  logLevel: "INFO"
+  logJson: "true"
+  prometheusEnabled: "true"
+  environment: "production"
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
